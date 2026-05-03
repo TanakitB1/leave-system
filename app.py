@@ -3,6 +3,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import mysql.connector
 from datetime import date
+from passlib.context import CryptContext
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
 app = FastAPI()
 
@@ -15,10 +28,10 @@ app.add_middleware(
 )
 
 db_config = {
-    "host": "localhost",
-    "user": "root",
-    "password": "๑089441404(ผ", 
-    "database": "leave_system_db"
+    "host": os.getenv("DB_HOST", "localhost"),
+    "user": os.getenv("DB_USER", "root"),
+    "password": os.getenv("DB_PASSWORD", ""), 
+    "database": os.getenv("DB_NAME", "leave_system_db")
 }
 
 # --- Models ---
@@ -54,19 +67,22 @@ async def login(req: LoginRequest):
         conn = mysql.connector.connect(**db_config)
         cursor = conn.cursor(dictionary=True)
         
-        # เพิ่มการเช็ค password ใน SQL
+        # ค้นหาด้วย emp_code เพื่อนำ hashed password มาตรวจสอบ
         cursor.execute(
             """
-            SELECT e.emp_code, e.first_name, e.last_name, e.role, e.department_id, d.name AS department_name
+            SELECT e.emp_code, e.first_name, e.last_name, e.role, e.department_id, e.password, d.name AS department_name
             FROM employees e
             LEFT JOIN departments d ON e.department_id = d.id
-            WHERE e.emp_code = %s AND e.password = %s
+            WHERE e.emp_code = %s
             """, 
-            (req.emp_code, req.password)
+            (req.emp_code,)
         )
         user = cursor.fetchone()
 
-        if user:
+        # ตรวจสอบรหัสผ่านที่ส่งมากับรหัสผ่านที่ถูก hash ไว้ในฐานข้อมูล
+        if user and verify_password(req.password, user["password"]):
+            # ไม่ส่ง password กลับไปให้ client เพื่อความปลอดภัย
+            del user["password"]
             return {"message": "Login Success", "user": user}
         else:
             raise HTTPException(status_code=401, detail="รหัสพนักงานหรือรหัสผ่านไม่ถูกต้อง")
@@ -131,11 +147,14 @@ async def add_employee(emp: EmployeeCreate):
         else:
             new_emp_code = f"{prefix}00001"
 
+        # แฮชรหัสผ่านก่อนบันทึกลงฐานข้อมูล
+        hashed_pwd = hash_password(emp.password)
+
         sql = """
             INSERT INTO employees (emp_code, first_name, last_name, role, password, department_id)
             VALUES (%s, %s, %s, %s, %s, %s)
         """
-        values = (new_emp_code, emp.first_name, emp.last_name, emp.role, emp.password, emp.department_id)
+        values = (new_emp_code, emp.first_name, emp.last_name, emp.role, hashed_pwd, emp.department_id)
         
         cursor.execute(sql, values)
         conn.commit()
