@@ -28,6 +28,8 @@ env/
 # ==================================
 setup_database.sql
 *.sql
+setup_database.sql
+
 
 # ==================================
 # Uploaded Files (ไฟล์ที่พนักงานอัปโหลด)
