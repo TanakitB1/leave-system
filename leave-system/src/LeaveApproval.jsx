@@ -24,8 +24,17 @@ function LeaveApproval({ user }) {
   }, [user]);
 
   const handleUpdateStatus = async (leaveId, status) => {
+    let rejectReason = null;
+    if (status === 'ไม่อนุมัติ') {
+      rejectReason = window.prompt("กรุณาระบุเหตุผลที่ไม่อนุมัติ:");
+      if (rejectReason === null) return; // User cancelled the prompt
+    }
+
     try {
-      await axios.put(`http://localhost:8000/api/leaves/${leaveId}/status`, { status });
+      await axios.put(`http://localhost:8000/api/leaves/${leaveId}/status`, { 
+        status, 
+        reject_reason: rejectReason 
+      });
       alert(`อัปเดตสถานะเป็น ${status} สำเร็จ`);
       fetchPendingLeaves(); // Refresh the list
     } catch (error) {
@@ -58,7 +67,16 @@ function LeaveApproval({ user }) {
               <tr key={leave.id} style={{ borderBottom: '1px solid #ddd' }}>
                 <td style={tdStyle}>{leave.emp_code}</td>
                 <td style={tdStyle}>{leave.first_name} {leave.last_name}</td>
-                <td style={tdStyle}>{leave.leave_type}</td>
+                <td style={tdStyle}>
+                  {leave.leave_type}
+                  {leave.certificate_path && (
+                    <div style={{ marginTop: '5px' }}>
+                      <a href={`http://localhost:8000/${leave.certificate_path}`} target="_blank" rel="noreferrer" style={{ fontSize: '0.85em', color: '#1976d2', textDecoration: 'none' }}>
+                        📄 ดูใบรับรองแพทย์
+                      </a>
+                    </div>
+                  )}
+                </td>
                 <td style={tdStyle}>{new Date(leave.start_date).toLocaleDateString('th-TH')} - {new Date(leave.end_date).toLocaleDateString('th-TH')}</td>
                 <td style={tdStyle}>{leave.reason}</td>
                 <td style={tdStyle}>

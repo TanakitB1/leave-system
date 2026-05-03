@@ -139,7 +139,7 @@ function App() {
         )}
         {user.role === 'employee' && activeTab === 'leave' && (
           <div className="fade-in">
-            <LeaveForm user={user} />
+            <LeaveForm user={user} onSuccess={() => setActiveTab('home')} />
           </div>
         )}
 
